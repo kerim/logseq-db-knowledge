@@ -164,7 +164,7 @@ logseq-db-knowledge/
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Task]
+         [?t :block/title "Task"]
          [?b :logseq.property/status ?s]
          [?s :block/title "Doing"]]}
 ```
@@ -182,8 +182,10 @@ logseq-db-knowledge/
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Person]]}
+         [?t :block/title "Person"]]}
 ```
+
+Note: Use `:block/title` for all tags (built-in and custom) for universal compatibility.
 
 See `references/query-examples.md` for 50+ more examples!
 

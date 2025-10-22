@@ -151,12 +151,12 @@ Status is a PROPERTY with these values:
 
 ✅ **CORRECT (DB approach):**
 ```clojure
-[:find (pull ?b [*])
- :where
- [?b :block/tags ?t]
- [?t :db/ident :logseq.class/Task]
- [?b :logseq.property/status ?s]
- [?s :block/title "Doing"]]
+{:query [:find (pull ?b [*])
+         :where
+         [?b :block/tags ?t]
+         [?t :block/title "Task"]
+         [?b :logseq.property/status ?s]
+         [?s :block/title "Doing"]]}
 ```
 
 **Customizing Tasks:**
@@ -255,11 +255,70 @@ Logseq DB uses new tags to power core features. Each has a built-in table for ma
 - Custom properties: `:logseq.property/YOUR-PROPERTY-NAME`
 
 **Tag Attributes:**
-- `:logseq.class/Task` - Task tag
-- `:logseq.class/Journal` - Journal tag
-- `:logseq.class/Query` - Query tag
-- `:logseq.class/Card` - Card tag
-- Custom tags: `:logseq.class/YourTagName`
+- `:logseq.class/Task` - Task tag (built-in)
+- `:logseq.class/Journal` - Journal tag (built-in)
+- `:logseq.class/Query` - Query tag (built-in)
+- `:logseq.class/Card` - Card tag (built-in)
+
+### Tag Matching: Built-in vs Custom Tags
+
+**CRITICAL: This is the most common source of query errors!**
+
+There are TWO ways to match tags in queries, and choosing the wrong one will cause your query to fail:
+
+#### Method 1: Using `:db/ident` (Built-in tags ONLY)
+```clojure
+[?b :block/tags ?t]
+[?t :db/ident :logseq.class/Task]
+```
+
+**Only works for built-in Logseq tags:**
+- `:logseq.class/Task`
+- `:logseq.class/Journal`
+- `:logseq.class/Query`
+- `:logseq.class/Card`
+- `:logseq.class/Asset`
+- `:logseq.class/Template`
+- `:logseq.class/Page`
+
+#### Method 2: Using `:block/title` (UNIVERSAL - works for ALL tags)
+```clojure
+[?b :block/tags ?t]
+[?t :block/title "Task"]
+```
+
+**Works for both built-in AND custom user-created tags:**
+- Built-in: `"Task"`, `"Journal"`, `"Query"`, `"Card"`, etc.
+- Custom: `"zotero"`, `"Person"`, `"Project"`, `"Meeting"`, etc.
+
+#### Best Practice: Use `:block/title` by default
+
+**RECOMMENDATION**: Always use `:block/title` unless you have a specific reason to use `:db/ident`.
+
+Why?
+- ✅ Works universally for all tags (built-in and custom)
+- ✅ More intuitive (matches the visible tag name)
+- ✅ Easier to remember
+- ✅ Prevents common query errors
+
+#### Example: Mixing Built-in and Custom Tags
+
+```clojure
+{:query [:find (pull ?b [*])
+         :where
+         ;; Find tasks (built-in tag)
+         [?b :block/tags ?task-tag]
+         [?task-tag :block/title "Task"]
+         [?b :logseq.property/status ?status]
+         [?status :block/title "Done"]
+
+         ;; That reference pages with custom tag
+         [?b :block/refs ?ref]
+         [?ref :block/tags ?custom-tag]
+         [?custom-tag :block/title "zotero"]]}
+```
+
+This query finds all Done tasks that reference pages tagged with `#zotero`.
 
 ### Query Examples
 
@@ -270,7 +329,7 @@ Logseq DB uses new tags to power core features. Each has a built-in table for ma
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Task]]}
+         [?t :block/title "Task"]]}
 ```
 
 **Find tasks with specific status:**
@@ -278,7 +337,7 @@ Logseq DB uses new tags to power core features. Each has a built-in table for ma
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Task]
+         [?t :block/title "Task"]
          [?b :logseq.property/status ?s]
          [?s :block/title "Doing"]]}
 ```
@@ -296,7 +355,7 @@ Logseq DB uses new tags to power core features. Each has a built-in table for ma
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Journal]]}
+         [?t :block/title "Journal"]]}
 ```
 
 **Find nodes by text content:**
@@ -318,7 +377,7 @@ Every advanced query in Logseq DB MUST start with `{:query` and end with `}`.
 {:query [:find (pull ?b [*])
          :where
          [?b :block/tags ?t]
-         [?t :db/ident :logseq.class/Task]
+         [?t :block/title "Task"]
          [?b :logseq.property/status ?s]
          [?s :block/title "Doing"]]}
 ```
@@ -336,7 +395,19 @@ Every advanced query in Logseq DB MUST start with `{:query` and end with `}`.
 [:find (pull ?b [*])
  :where
  [?b :block/tags ?t]
- [?t :db/ident :logseq.class/Task]]
+ [?t :block/title "Task"]]
+
+; ❌ WRONG - Using :db/ident for custom user tags
+{:query [:find (pull ?b [*])
+         :where
+         [?b :block/tags ?t]
+         [?t :db/ident :logseq.class/zotero]]}  ; zotero is a custom tag!
+
+; ✅ CORRECT - Use :block/title for custom tags
+{:query [:find (pull ?b [*])
+         :where
+         [?b :block/tags ?t]
+         [?t :block/title "zotero"]]}
 ```
 
 **Example: Find blocks referencing "Alice":**
@@ -384,7 +455,10 @@ When working with Logseq DB, avoid these file-based assumptions:
 ✅ **CORRECT**: Tasks use #Task tag + Status property
 
 ❌ **WRONG**: Query tasks with `:block/marker`
-✅ **CORRECT**: Query tasks with `:logseq.class/Task` and `:logseq.property/status`
+✅ **CORRECT**: Query tasks with tag matching and `:logseq.property/status`
+
+❌ **WRONG**: Use `:db/ident` for custom user tags
+✅ **CORRECT**: Use `:block/title` for all tags (works for both built-in and custom)
 
 ❌ **WRONG**: Tags are just hashtags for organization
 ✅ **CORRECT**: New tags are classes that define properties and behavior
@@ -419,8 +493,10 @@ Set templates to auto-apply to tags for consistent structure.
 Always start queries by filtering to a tag, then add property filters:
 ```clojure
 [?b :block/tags ?t]
-[?t :db/ident :logseq.class/YOUR-TAG]
+[?t :block/title "YourTagName"]
 ```
+
+Use `:block/title` for universal compatibility with both built-in and custom tags.
 
 ### 6. Use Tables for Bulk Management
 Navigate to tag pages and use tables for sorting, filtering, and bulk operations.
